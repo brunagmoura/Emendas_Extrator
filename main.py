@@ -11,7 +11,7 @@ def load_data():
 
     # Ajustar o formato do número da emenda em emendas_orcamento
     emendas_orcamento['codigo_emenda_formatado'] = (
-        emendas_orcamento['Resultado EOF Nome']
+        emendas_orcamento['Autor Emendas Orçamento Código']
         .astype(str)
         .apply(lambda x: f"{x[4:]}-{x[:4]}")
     )
@@ -25,11 +25,11 @@ emendas_orcamento, emendas_pagamentos = load_data()
 st.title("Filtrar Emendas Orçamentárias e Pagamentos")
 
 # Mostrar os tipos de emenda disponíveis
-tipo_emendas = emendas_orcamento['Resultado EOF Nome'].unique()
-tipo_selecionado = st.selectbox("Selecione o Tipo de Emenda", tipo_emendas)
+tipo_emendas = emendas_orcamento['Autor Emendas Orçamento Código'].unique()
+tipo_selecionado = st.selectbox("Selecione a Emenda", tipo_emendas)
 
 # Filtrar os dados
-emendas_filtradas = emendas_orcamento[emendas_orcamento['Resultado EOF Nome'] == tipo_selecionado]
+emendas_filtradas = emendas_orcamento[emendas_orcamento['Autor Emendas Orçamento Código'] == tipo_selecionado]
 pagamentos_filtrados = emendas_pagamentos[
     emendas_pagamentos['Emenda (Número/Ano)'].isin(emendas_filtradas['codigo_emenda_formatado'])
 ]
