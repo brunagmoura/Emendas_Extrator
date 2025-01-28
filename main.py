@@ -144,12 +144,15 @@ orcamento_visualizado = filtro_orcamento[colunas_orcamento]
 
 st.subheader("Emendas filtradas - info. orçamentárias")
 st.dataframe(orcamento_visualizado)
+st.warning("Fonte: Siafi/Tesouro Gerencial")
 
 st.subheader("Emendas filtradas - info. pagamentos")
 st.dataframe(filtro_pagamentos)
+st.warning("Fonte: Siga Brasil")
 
 st.subheader("Emendas filtradas - info. instrumentos repasse")
 st.dataframe(filtro_transferegov)
+st.warning("Fonte: TransfereGov - Módulo emendas parlamentares")
 
 def convert_df(df):
     return df.to_csv(index=False).encode('utf-8')
