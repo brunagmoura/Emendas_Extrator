@@ -2,45 +2,41 @@ import pandas as pd
 import streamlit as st
 
 st.set_page_config(page_title=None,
-                   page_icon=None, layout="wide")
+                   page_icon=None, layout="wide",
+                   )
 
-# Carregar os dados
-@st.cache_data
+st.title("Extrator emendas parlamentares (2023-2024)")
+
 @st.cache_data
 def load_data():
     emendas_orcamento = pd.read_excel("emendas_orcamento.xlsx")
     emendas_pagamentos = pd.read_excel("emendas_pagamentos.xlsx")
     emendas_transferegov = pd.read_excel("emendas_transferegov.xlsx")
 
-    # Converter "Número" e "Ano emenda" para string em emendas_orcamento
     emendas_orcamento['Número'] = emendas_orcamento['Número'].astype(str)
     emendas_orcamento['Ano emenda'] = emendas_orcamento['Ano emenda'].astype(str)
 
-    # Ajustar o formato do número da emenda em emendas_pagamentos
     emendas_pagamentos['codigo_emenda_formatado'] = (
         emendas_pagamentos['Emenda (Número/Ano)']
         .astype(str)
         .apply(lambda x: f"{x[-4:]}{x[:-5].replace('-', '')}")
     )
 
-    # Converter "Nº Emenda" para string em emendas_transferegov
     emendas_transferegov['Nº Emenda'] = emendas_transferegov['Nº Emenda'].astype(str)
 
     return emendas_orcamento, emendas_pagamentos, emendas_transferegov
 
-# Função para aplicar filtros em todas as tabelas
 @st.cache_data
 def apply_filters(emendas_orcamento, emendas_pagamentos, emendas_transferegov,
                   numero, tipo_emenda, programa_governo, acao_governo,
                   plano_orcamentario, natureza_detalhada_despesa,
                   elemento_despesa, modalidade_aplicacao, ha_convenio, favorecido_pagamento,
                   favorecido_natureza_subgrupo, natureza_juridica):
-    # Criar cópias das tabelas
+
     orcamento_filtrado = emendas_orcamento.copy()
     pagamentos_filtrado = emendas_pagamentos.copy()
     transferegov_filtrado = emendas_transferegov.copy()
 
-    # Aplicar filtros na tabela emendas_orcamento
     if numero:
         orcamento_filtrado = orcamento_filtrado[orcamento_filtrado['Número'].astype(str).str.contains(str(numero))]
     if tipo_emenda:
@@ -58,10 +54,8 @@ def apply_filters(emendas_orcamento, emendas_pagamentos, emendas_transferegov,
     if modalidade_aplicacao:
         orcamento_filtrado = orcamento_filtrado[orcamento_filtrado['Modalidade aplicação'] == modalidade_aplicacao]
 
-    # Obter números de emenda filtrados na tabela orcamento
     emendas_filtradas = set(orcamento_filtrado['Número'].astype(str))
 
-    # Aplicar filtros na tabela emendas_pagamentos
     if favorecido_pagamento:
         pagamentos_filtrado = pagamentos_filtrado[
             pagamentos_filtrado['Favorecido do Pagamento - Município/UF'].str.contains(favorecido_pagamento, case=False, na=False)
@@ -71,27 +65,23 @@ def apply_filters(emendas_orcamento, emendas_pagamentos, emendas_transferegov,
             pagamentos_filtrado['Favorecido do Pagamento (Natureza Subgrupo)'] == favorecido_natureza_subgrupo
         ]
 
-    # Sincronizar com base nos números de emenda de emendas_pagamentos
     emendas_filtradas_pagamentos = set(pagamentos_filtrado['codigo_emenda_formatado'])
     emendas_filtradas = emendas_filtradas & emendas_filtradas_pagamentos
 
-    # Aplicar filtros na tabela emendas_transferegov
     if natureza_juridica:
         transferegov_filtrado = transferegov_filtrado[
             transferegov_filtrado['Natureza Jurídica'] == natureza_juridica
         ]
 
-    # Filtrar "Há convênio?"
     if ha_convenio == 'Sim':
         # Apenas emendas presentes em emendas_transferegov
         emendas_filtradas_transferegov = set(transferegov_filtrado['Nº Emenda'].astype(str))
         emendas_filtradas = emendas_filtradas & emendas_filtradas_transferegov
     elif ha_convenio == 'Não':
-        # Apenas emendas NÃO presentes em emendas_transferegov
+
         emendas_com_convenio = set(emendas_transferegov['Nº Emenda'].astype(str))
         emendas_filtradas = emendas_filtradas - emendas_com_convenio
 
-    # Filtrar todas as tabelas novamente com base nos números de emenda sincronizados
     orcamento_filtrado = orcamento_filtrado[orcamento_filtrado['Número'].astype(str).isin(emendas_filtradas)]
     pagamentos_filtrado = pagamentos_filtrado[pagamentos_filtrado['codigo_emenda_formatado'].isin(emendas_filtradas)]
     transferegov_filtrado = transferegov_filtrado[
@@ -100,14 +90,8 @@ def apply_filters(emendas_orcamento, emendas_pagamentos, emendas_transferegov,
 
     return orcamento_filtrado, pagamentos_filtrado, transferegov_filtrado
 
-
-# Carregar os dados
 emendas_orcamento, emendas_pagamentos, emendas_transferegov = load_data()
 
-# Título do app
-st.title("Extrator emendas parlamentares (2023-2024)")
-
-# Layout dos filtros em blocos de 3 colunas
 col1, col2, col3 = st.columns(3)
 
 with col1:
@@ -132,7 +116,6 @@ with col3:
                                                     'Favorecido do Pagamento (Natureza Subgrupo)'].unique().tolist())
     favorecido_pagamento = st.selectbox("Favorecido - Município/UF", [""] + emendas_pagamentos['Favorecido do Pagamento - Município/UF'].unique().tolist())
 
-# Aplicar os filtros
 filtro_orcamento, filtro_pagamentos, filtro_transferegov = apply_filters(
     emendas_orcamento, emendas_pagamentos, emendas_transferegov,
     numero, tipo_emenda, programa_governo, acao_governo,
@@ -141,7 +124,6 @@ filtro_orcamento, filtro_pagamentos, filtro_transferegov = apply_filters(
     favorecido_pagamento, favorecido_natureza_subgrupo, natureza_juridica
 )
 
-# Selecionar as colunas desejadas para a tabela emendas_orcamento
 colunas_orcamento = [
     "Número",
     "Ano emenda",
@@ -160,7 +142,6 @@ colunas_orcamento = [
 
 orcamento_visualizado = filtro_orcamento[colunas_orcamento]
 
-# Exibir os resultados
 st.subheader("Emendas filtradas - info. orçamentárias")
 st.dataframe(orcamento_visualizado)
 
@@ -170,7 +151,6 @@ st.dataframe(filtro_pagamentos)
 st.subheader("Emendas filtradas - info. instrumentos repasse")
 st.dataframe(filtro_transferegov)
 
-# Opções para download
 def convert_df(df):
     return df.to_csv(index=False).encode('utf-8')
 
