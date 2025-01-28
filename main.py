@@ -158,21 +158,21 @@ def convert_df(df):
     return df.to_csv(index=False).encode('utf-8')
 
 st.download_button(
-    label="Baixar Emendas Orçamentárias Filtradas",
+    label="Baixar Info. Orçamentárias Filtradas",
     data=convert_df(filtro_orcamento),
     file_name="emendas_orcamento_filtradas.csv",
     mime="text/csv",
 )
 
 st.download_button(
-    label="Baixar Pagamentos Filtrados",
+    label="Baixar Info. Pagamento Filtrados",
     data=convert_df(filtro_pagamentos),
     file_name="emendas_pagamentos_filtrados.csv",
     mime="text/csv",
 )
 
 st.download_button(
-    label="Baixar Emendas TransfereGov Filtradas",
+    label="Baixar Info. Instrumentos de Repasse Filtradas",
     data=convert_df(filtro_transferegov),
     file_name="emendas_transferegov_filtradas.csv",
     mime="text/csv",
