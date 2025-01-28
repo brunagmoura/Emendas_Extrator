@@ -1,63 +1,196 @@
 import pandas as pd
 import streamlit as st
 
+st.set_page_config(page_title=None,
+                   page_icon=None, layout="wide")
+
 # Carregar os dados
 @st.cache_data
+@st.cache_data
 def load_data():
-    url_orcamento = 'emendas_orcamento.xlsx'
-    url_pagamentos = 'emendas_pagamentos.xlsx'
-    emendas_orcamento = pd.read_excel(url_orcamento)
-    emendas_pagamentos = pd.read_excel(url_pagamentos)
+    emendas_orcamento = pd.read_excel("emendas_orcamento.xlsx")
+    emendas_pagamentos = pd.read_excel("emendas_pagamentos.xlsx")
+    emendas_transferegov = pd.read_excel("emendas_transferegov.xlsx")
 
-    # Ajustar o formato do número da emenda em emendas_orcamento
-    emendas_orcamento['codigo_emenda_formatado'] = (
-        emendas_orcamento['Autor Emendas Orçamento Código']
+    # Converter "Número" e "Ano emenda" para string em emendas_orcamento
+    emendas_orcamento['Número'] = emendas_orcamento['Número'].astype(str)
+    emendas_orcamento['Ano emenda'] = emendas_orcamento['Ano emenda'].astype(str)
+
+    # Ajustar o formato do número da emenda em emendas_pagamentos
+    emendas_pagamentos['codigo_emenda_formatado'] = (
+        emendas_pagamentos['Emenda (Número/Ano)']
         .astype(str)
-        .apply(lambda x: f"{x[4:]}-{x[:4]}")
+        .apply(lambda x: f"{x[-4:]}{x[:-5].replace('-', '')}")
     )
 
-    return emendas_orcamento, emendas_pagamentos
+    # Converter "Nº Emenda" para string em emendas_transferegov
+    emendas_transferegov['Nº Emenda'] = emendas_transferegov['Nº Emenda'].astype(str)
 
-# Carregar as planilhas
-emendas_orcamento, emendas_pagamentos = load_data()
+    return emendas_orcamento, emendas_pagamentos, emendas_transferegov
+
+# Função para aplicar filtros em todas as tabelas
+@st.cache_data
+def apply_filters(emendas_orcamento, emendas_pagamentos, emendas_transferegov,
+                  numero, tipo_emenda, programa_governo, acao_governo,
+                  plano_orcamentario, natureza_detalhada_despesa,
+                  elemento_despesa, modalidade_aplicacao, ha_convenio, favorecido_pagamento,
+                  favorecido_natureza_subgrupo, natureza_juridica):
+    # Criar cópias das tabelas
+    orcamento_filtrado = emendas_orcamento.copy()
+    pagamentos_filtrado = emendas_pagamentos.copy()
+    transferegov_filtrado = emendas_transferegov.copy()
+
+    # Aplicar filtros na tabela emendas_orcamento
+    if numero:
+        orcamento_filtrado = orcamento_filtrado[orcamento_filtrado['Número'].astype(str).str.contains(str(numero))]
+    if tipo_emenda:
+        orcamento_filtrado = orcamento_filtrado[orcamento_filtrado['Tipo emenda'] == tipo_emenda]
+    if programa_governo:
+        orcamento_filtrado = orcamento_filtrado[orcamento_filtrado['Programa Governo Nome'] == programa_governo]
+    if acao_governo:
+        orcamento_filtrado = orcamento_filtrado[orcamento_filtrado['Ação Governo Nome'] == acao_governo]
+    if plano_orcamentario:
+        orcamento_filtrado = orcamento_filtrado[orcamento_filtrado['Plano Orç.'] == plano_orcamentario]
+    if natureza_detalhada_despesa:
+        orcamento_filtrado = orcamento_filtrado[orcamento_filtrado['Natureza detalhada despesa'] == natureza_detalhada_despesa]
+    if elemento_despesa:
+        orcamento_filtrado = orcamento_filtrado[orcamento_filtrado['Elemento despesa'] == elemento_despesa]
+    if modalidade_aplicacao:
+        orcamento_filtrado = orcamento_filtrado[orcamento_filtrado['Modalidade aplicação'] == modalidade_aplicacao]
+
+    # Obter números de emenda filtrados na tabela orcamento
+    emendas_filtradas = set(orcamento_filtrado['Número'].astype(str))
+
+    # Aplicar filtros na tabela emendas_pagamentos
+    if favorecido_pagamento:
+        pagamentos_filtrado = pagamentos_filtrado[
+            pagamentos_filtrado['Favorecido do Pagamento - Município/UF'].str.contains(favorecido_pagamento, case=False, na=False)
+        ]
+    if favorecido_natureza_subgrupo:
+        pagamentos_filtrado = pagamentos_filtrado[
+            pagamentos_filtrado['Favorecido do Pagamento (Natureza Subgrupo)'] == favorecido_natureza_subgrupo
+        ]
+
+    # Sincronizar com base nos números de emenda de emendas_pagamentos
+    emendas_filtradas_pagamentos = set(pagamentos_filtrado['codigo_emenda_formatado'])
+    emendas_filtradas = emendas_filtradas & emendas_filtradas_pagamentos
+
+    # Aplicar filtros na tabela emendas_transferegov
+    if natureza_juridica:
+        transferegov_filtrado = transferegov_filtrado[
+            transferegov_filtrado['Natureza Jurídica'] == natureza_juridica
+        ]
+
+    # Filtrar "Há convênio?"
+    if ha_convenio == 'Sim':
+        # Apenas emendas presentes em emendas_transferegov
+        emendas_filtradas_transferegov = set(transferegov_filtrado['Nº Emenda'].astype(str))
+        emendas_filtradas = emendas_filtradas & emendas_filtradas_transferegov
+    elif ha_convenio == 'Não':
+        # Apenas emendas NÃO presentes em emendas_transferegov
+        emendas_com_convenio = set(emendas_transferegov['Nº Emenda'].astype(str))
+        emendas_filtradas = emendas_filtradas - emendas_com_convenio
+
+    # Filtrar todas as tabelas novamente com base nos números de emenda sincronizados
+    orcamento_filtrado = orcamento_filtrado[orcamento_filtrado['Número'].astype(str).isin(emendas_filtradas)]
+    pagamentos_filtrado = pagamentos_filtrado[pagamentos_filtrado['codigo_emenda_formatado'].isin(emendas_filtradas)]
+    transferegov_filtrado = transferegov_filtrado[
+        transferegov_filtrado['Nº Emenda'].astype(str).isin(emendas_filtradas)
+    ]
+
+    return orcamento_filtrado, pagamentos_filtrado, transferegov_filtrado
+
+
+# Carregar os dados
+emendas_orcamento, emendas_pagamentos, emendas_transferegov = load_data()
 
 # Título do app
-st.title("Filtrar Emendas Orçamentárias e Pagamentos")
+st.title("Extrator emendas parlamentares (2023-2024)")
 
-# Mostrar os tipos de emenda disponíveis
-tipo_emendas = emendas_orcamento['Autor Emendas Orçamento Código'].unique()
-tipo_selecionado = st.selectbox("Selecione a Emenda", tipo_emendas)
+# Layout dos filtros em blocos de 3 colunas
+col1, col2, col3 = st.columns(3)
 
-# Filtrar os dados
-emendas_filtradas = emendas_orcamento[emendas_orcamento['Autor Emendas Orçamento Código'] == tipo_selecionado]
-pagamentos_filtrados = emendas_pagamentos[
-    emendas_pagamentos['Emenda (Número/Ano)'].isin(emendas_filtradas['codigo_emenda_formatado'])
+with col1:
+    numero = st.selectbox("Número emenda", [""] + emendas_orcamento['Número'].unique().tolist())
+    tipo_emenda = st.selectbox("Tipo de Emenda", [""] + emendas_orcamento['Tipo emenda'].unique().tolist())
+    ha_convenio = st.selectbox("Há Convênio?", [""] + ['Sim', 'Não'])
+
+with col2:
+    programa_governo = st.selectbox("Programa Governo",
+                                    [""] + emendas_orcamento['Programa Governo Nome'].unique().tolist())
+    acao_governo = st.selectbox("Ação Governo", [""] + emendas_orcamento['Ação Governo Nome'].unique().tolist())
+    plano_orcamentario = st.selectbox("Plano Orçamentário", [""] + emendas_orcamento['Plano Orç.'].unique().tolist())
+    natureza_detalhada_despesa = st.selectbox("Natureza Detalhada Despesa", [""] + emendas_orcamento['Natureza detalhada despesa'].unique().tolist())
+    elemento_despesa = st.selectbox("Elemento Despesa", [""] + emendas_orcamento['Elemento despesa'].unique().tolist())
+    modalidade_aplicacao = st.selectbox("Modalidade Aplicação", [""] + emendas_orcamento['Modalidade aplicação'].unique().tolist())
+
+with col3:
+    natureza_juridica = st.selectbox("Natureza Jurídica do Favorecido - Grupo",
+                                     [""] + emendas_transferegov['Natureza Jurídica'].unique().tolist())
+    favorecido_natureza_subgrupo = st.selectbox("Natureza Jurídica do Favorecido - Subgrupo",
+                                                [""] + emendas_pagamentos[
+                                                    'Favorecido do Pagamento (Natureza Subgrupo)'].unique().tolist())
+    favorecido_pagamento = st.selectbox("Favorecido - Município/UF", [""] + emendas_pagamentos['Favorecido do Pagamento - Município/UF'].unique().tolist())
+
+# Aplicar os filtros
+filtro_orcamento, filtro_pagamentos, filtro_transferegov = apply_filters(
+    emendas_orcamento, emendas_pagamentos, emendas_transferegov,
+    numero, tipo_emenda, programa_governo, acao_governo,
+    plano_orcamentario, natureza_detalhada_despesa,
+    elemento_despesa, modalidade_aplicacao, ha_convenio,
+    favorecido_pagamento, favorecido_natureza_subgrupo, natureza_juridica
+)
+
+# Selecionar as colunas desejadas para a tabela emendas_orcamento
+colunas_orcamento = [
+    "Número",
+    "Ano emenda",
+    "Tipo emenda",
+    "Programa",
+    "Ação",
+    "Plano Orç.",
+    "Natureza detalhada despesa",
+    "Elemento despesa",
+    "Modalidade aplicação",
+    "Empenhado (R$)",
+    "Liquidado (R$)",
+    "Pago (R$)",
+    "Pagamentos totais (exercício + RAP)"
 ]
 
+orcamento_visualizado = filtro_orcamento[colunas_orcamento]
+
 # Exibir os resultados
-st.subheader("Planilha de Emendas Orçamentárias Filtradas")
-st.dataframe(emendas_filtradas)
+st.subheader("Emendas filtradas - info. orçamentárias")
+st.dataframe(orcamento_visualizado)
 
-st.subheader("Planilha de Pagamentos Filtrados")
-st.dataframe(pagamentos_filtrados)
+st.subheader("Emendas filtradas - info. pagamentos")
+st.dataframe(filtro_pagamentos)
 
-# Opção para baixar os resultados
+st.subheader("Emendas filtradas - info. instrumentos repasse")
+st.dataframe(filtro_transferegov)
+
+# Opções para download
 def convert_df(df):
     return df.to_csv(index=False).encode('utf-8')
 
-csv_orcamento = convert_df(emendas_filtradas)
-csv_pagamentos = convert_df(pagamentos_filtrados)
-
 st.download_button(
     label="Baixar Emendas Orçamentárias Filtradas",
-    data=csv_orcamento,
+    data=convert_df(filtro_orcamento),
     file_name="emendas_orcamento_filtradas.csv",
     mime="text/csv",
 )
 
 st.download_button(
     label="Baixar Pagamentos Filtrados",
-    data=csv_pagamentos,
+    data=convert_df(filtro_pagamentos),
     file_name="emendas_pagamentos_filtrados.csv",
+    mime="text/csv",
+)
+
+st.download_button(
+    label="Baixar Emendas TransfereGov Filtradas",
+    data=convert_df(filtro_transferegov),
+    file_name="emendas_transferegov_filtradas.csv",
     mime="text/csv",
 )
